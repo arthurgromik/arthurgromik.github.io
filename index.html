@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<title>Let's AI this!</title>
+		<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/codemirror.min.css">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/theme/monokai.min.css"> <!-- Dark theme -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/codemirror.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.63.1/mode/python/python.min.js"></script>
+		<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+		<script src="https://accounts.google.com/gsi/client" async></script>
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+		<link href="desktop/css/main.css" rel="stylesheet">
+		<link href="desktop/css/codemirror.css" rel="stylesheet">
+	</head>
+	<body>
+		<div id="particles-js"></div>
+		<div id="top">
+			<header>
+				<div class="header-item dropdown">
+					<p>Futuresq</p>
+					<div class="dropdown-content">
+						<a href="/">Home</a>
+						<a href="/about">About</a>
+						<a href="/terms">Terms of Service</a>
+						<a href="/privacy">Privacy Policy</a>
+					</div>
+				</div>
+				<div class="separator"></div>
+				<div class="header-item dropdown">
+					<p>File</p>
+					<div class="dropdown-content">
+						<a href="#" onclick="location.reload();">New</a>
+						<a href="#">
+							<label for="open-file" class="custom-file-upload">
+								Open
+							</label>
+							<input type="file" accept=".nnc1" id="open-file" style="display: none;">
+						</a>
+						<a href="#" id="save-file">Save</a>
+					</div>
+				</div>
+				<div class="separator"></div>
+				<div class="header-item dropdown">
+					<p>Add new..</p>
+					<div class="dropdown-content">
+						<a href="#" onclick="addNode();">Node</a>
+						<hr>
+						<a href="#" onclick="createNote();">Window</a>
+					</div>
+				</div>
+				<div class="separator"></div>
+				<div class="header-item dropdown">
+					<p>Windows</p>
+					<div id="tray" class="dropdown-content">
+
+					</div>
+				</div>
+				<div class="separator"></div>
+				<div class="header-item dropdown">
+					<p>Files</p>
+					<div id="file-list" class="dropdown-content">
+
+					</div>
+				</div>
+				<div class="separator"></div>
+				<div class="header-item dropdown">
+					<p>Sign up/Log in</p>
+					<div class="dropdown-content">
+						<a href="#" onclick="$('.glass:eq(1)').css('display', 'flex');">With Email</a>
+					</div>
+				</div>
+				<div id="hover-line"></div>
+			</header>
+			<main>
+				<div id="code-editor">
+					<div id="code-header">
+						<button onclick="sendRequest();">
+							<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="#00ff00" class="bi bi-play-fill" viewBox="0 0 16 16">
+								<path d="m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+							</svg>
+						</button>
+						<button onclick="insertTextAtCursor(editor, 'import numpy as np\nimport tensorflow as tf\nfrom tensorflow import keras\nfrom tensorflow.keras import layers\n\n' + String($('#node-container')[0].contentWindow.order().map((index) => (formatNode(index))).join('')));">
+							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#ffffff" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+								<path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>
+								<path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/>
+							</svg>
+						</button>
+					</div>
+					<div id="code-container">
+						<button id="fullscreen" onclick="adjustCodeEditorScale();">
+							<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-fullscreen" viewBox="0 0 16 16">
+								<path d="M1.5 1a.5.5 0 0 0-.5.5v4a.5.5 0 0 1-1 0v-4A1.5 1.5 0 0 1 1.5 0h4a.5.5 0 0 1 0 1zM10 .5a.5.5 0 0 1 .5-.5h4A1.5 1.5 0 0 1 16 1.5v4a.5.5 0 0 1-1 0v-4a.5.5 0 0 0-.5-.5h-4a.5.5 0 0 1-.5-.5M.5 10a.5.5 0 0 1 .5.5v4a.5.5 0 0 0 .5.5h4a.5.5 0 0 1 0 1h-4A1.5 1.5 0 0 1 0 14.5v-4a.5.5 0 0 1 .5-.5m15 0a.5.5 0 0 1 .5.5v4a1.5 1.5 0 0 1-1.5 1.5h-4a.5.5 0 0 1 0-1h4a.5.5 0 0 0 .5-.5v-4a.5.5 0 0 1 .5-.5" />
+							</svg>
+						</button>
+						<div id="codeEditor" class="CodeMirror"></div>
+					</div>
+				</div>
+				<div id="node-editor">
+					<iframe src="nodes.html" id="node-container" allowtransparency></iframe>
+					<div id="add-node-button" onclick="addNode();">+</div>
+				</div>
+				<div id="notes-container"></div>
+				<div class="glass">
+					<div id="container">
+						<h2>Node parameters</h2>
+
+						<button class="close-button" aria-label="Close alert" type="button" data-close>
+							<span aria-hidden="true">&times;</span>
+						</button>
+				
+						<div class="control">
+							<label for="select">Type:</label>
+							<input id="select" type="text" placeholder="Start typing.." autocomplete="off">
+					
+						</div>
+				
+						<div id="other-parameters"></div>
+					</div>
+				</div>
+				
+				<div class="glass">
+					<div id="auth-form">
+						<button class="close-button" aria-label="Close alert" type="button" data-close>
+							<span aria-hidden="true">&times;</span>
+						</button>
+						<form method="POST">
+							<h2>Authorize</h2>
+							<label for="email-field">Email: </label>
+							<input id="email-field" name="email" type="email" maxlength="64" required>
+							<br>
+							<label for="password-field">Password: </label>
+							<input id="password-field" name="password" type="password" maxlength="64" minlength="8" required>
+							<br>
+							<input type="submit">
+						</form>
+					</div>
+				</div>
+				<div class="glass">
+					<div id="upgrade">
+						<button class="close-button" aria-label="Close alert" type="button" data-close>
+							<span aria-hidden="true">&times;</span>
+						</button>
+						<h2>Upgrade to use this feature</h2>
+						<button onclick="$('.glass').hide();">Cancel</button>
+					</div>
+				</div>
+			</main>
+		</div>
+		<footer style="text-align: center; color: #171824; font-size: 24px; user-select: none">
+		    <div style="position: absolute; top: 50%; left: 50%; translate: -50% -50%;">&copy; 2026 Futuresq. All rights reserved.</div>
+		</footer>
+		<scripts>
+			<script src="desktop/js/mobile.js"></script><!-- Mobile Support -->
+			<script src="desktop/js/style.js"></script><!-- Style -->
+			<script src="desktop/js/cursor.js"></script><!-- Cursor -->
+			<script src="desktop/js/particles.js"></script> <!-- Particles-JS & CodeMirror -->
+			<script src="desktop/js/notes.js"></script> <!-- Note Windows -->
+			<script src="desktop/js/header.js"></script> <!-- Header Logic -->
+			<script src="desktop/js/menu.js"></script> <!-- Interactive Menu -->
+			<script src="desktop/js/main.js"></script> <!-- General Functionality -->
+			<script src="desktop/js/request.js"></script> <!-- Send Request -->
+			<script src="desktop/js/selector.js"></script> <!-- Selector logic -->
+		</scripts>
+	</body>
+</html>

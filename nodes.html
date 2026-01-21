@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+	<style>
+
+		body {
+			margin: 0;
+			overflow: auto;
+			/*background-color: #0f0f0f;*/
+			width: calc(100% - 10px);
+			height: calc(100% - 10px);
+			font-family: "comfortaa";
+		}
+
+		#node-container {
+			position: relative;
+			width: 100%;
+			height: 100%;
+			background-color: rgba(0, 0, 0, 0);
+		}
+
+		.node {
+			position: absolute;
+			width: 300px;
+			padding: 10px;
+			background-color: #fff;
+			border: 1px solid #ccc;
+			border-radius: 10px;
+			user-select: none;
+			opacity: .8;
+		}
+
+		.fields {
+			display: flex;
+			justify-content: space-between;
+		}
+
+		.fields.left,
+		.fields.right {
+			flex-direction: column;
+			width: 45%;
+		}
+
+		.fields.right {
+			align-items: flex-end;
+		}
+
+		.field {
+			margin: 5px 0;
+			position: relative;
+		}
+
+		.connector {
+			position: absolute;
+			width: 12px;
+			height: 12px;
+			background-color: #000;
+			border-radius: 50%;
+			cursor: pointer;
+			top: 50%;
+			transform: translateY(-50%);
+		}
+
+		.connector.left {
+			left: -19px;
+		}
+
+		.connector.right {
+			right: -19px;
+		}
+
+		.connector.active {
+			background-color: white; /* Change the color of the active connection */
+		}
+
+		canvas {
+			position: absolute;
+			top: 0;
+			left: 0;
+			pointer-events: none; /* Allow interactions with elements beneath the canvas */
+		}
+
+		p{
+			margin: 0;
+		}
+
+		.node-header {
+			width: 100%;
+			cursor: move;
+		}
+
+		::-webkit-scrollbar {
+			background: transparent;
+			width: 10px;
+			height: 10px;
+			border-radius: 5px;
+		}
+
+		::-webkit-scrollbar-thumb {
+			background-color: rgba(255, 255, 255, .2);
+			border-radius: 5px;
+		}
+
+		::-webkit-scrollbar-thumb {
+			-webkit-transition: background-color 0.3s ease;
+			transition: background-color 0.3s ease;
+		}
+
+		::-webkit-scrollbar-thumb:hover {
+			background-color: rgba(0, 127, 255, .9);
+		}
+
+		::-webkit-scrollbar-corner {
+			background-color: transparent;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="connection-canvas"></canvas>
+	<div id="node-container"></div>
+	<script>
+		// Example data for nodes
+		var nodes = [];
+		let oldValues = nodes.map(node => node.fieldsLeft);
+		var connections = [];
+
+		let activeConnector = null;
+		const canvas = document.getElementById('connection-canvas');
+		const ctx = canvas.getContext('2d');
+
+		// Render nodes
+		var nodeContainer = document.getElementById('node-container');
+
+		// Add event listeners for connectors
+		const connectors = document.querySelectorAll('.connector');
+
+
+		function onMouseDown(event)
+		{
+			event.stopPropagation(); // Stop the event from propagating to the document's mouseup event
+
+			const nodeID = event.target.getAttribute('data-node');
+			const index = event.target.getAttribute('data-index');
+			activeConnector = { nodeID, index, type: event.target.classList.contains('left') ? 'left' : 'right' };
+			event.target.classList.add('active');
+		}
+
+		function onMouseUp()
+		{
+			if (activeConnector) {
+				const hoveredConnector = document.elementFromPoint(event.clientX, event.clientY);
+
+				if (hoveredConnector && hoveredConnector.classList.contains('connector') && hoveredConnector !== activeConnector) {
+					// Ensure that the active and hovered connectors belong to different nodes
+					const activeNodeID = activeConnector.nodeID;
+					const hoveredNodeID = hoveredConnector.getAttribute('data-node');
+					if (activeNodeID !== hoveredNodeID) {
+						// Ensure that the active and hovered connectors are of different types (left/right)
+						const activeType = activeConnector.type;
+						const hoveredType = hoveredConnector.classList.contains('left') ? 'left' : 'right';
+						if (activeType !== hoveredType) {
+							// Connect the active connector to the hovered connector
+							const hoveredIndex = hoveredConnector.getAttribute('data-index');
+							let condition = (hoveredType == 'left');
+
+							let ANID = parseInt(condition ? activeNodeID : hoveredNodeID);
+							let ACIN = parseInt(condition ? activeConnector.index : hoveredIndex);
+							let HNID = parseInt(condition ? hoveredNodeID : activeNodeID);
+							let HCIN = parseInt(condition ? hoveredIndex : activeConnector.index);
+
+							connectNodes(ANID, ACIN, HNID, HCIN);
+						}
+					}
+				}
+
+				// Reset active connector
+				document.querySelectorAll('.connector.active').forEach(connector => {
+					connector.classList.remove('active');
+				});
+				activeConnector = null;
+			}
+		}
+
+		function onContextMenu(event)
+		{
+			const rightClickedConnector = event.target;
+			if (rightClickedConnector.classList.contains('connector') && rightClickedConnector.classList.contains('left')) {
+				const nodeID = parseInt(rightClickedConnector.getAttribute('data-node'));
+				const index = parseInt(rightClickedConnector.getAttribute('data-index'));
+				const connectionToRemove = findConnectionByEndpoint(nodeID, index);
+				if (connectionToRemove) {
+					event.preventDefault(); // Prevent the default context menu
+					removeConnection(connectionToRemove);
+				}
+			}
+		}
+
+		// Function to find the connection by the left endpoint
+		function findConnectionByEndpoint(nodeID, index) {
+			return connections.find(connection =>
+				connection.nodeID2 === nodeID &&
+				connection.index2 === index
+			);
+		}
+
+		const convert = (value, maxLength=18) => (String(value).length > maxLength ? String(value).slice(0, maxLength) + '..': String(value));
+
+		window.setInterval(function() {
+			let newValues = nodes.map(node => node.fieldsLeft);
+			if(newValues.length > oldValues.length)
+			{
+				nodes.slice(oldValues.length, newValues.length).forEach(nodeData => {
+					const node = document.createElement('div');
+					node.className = 'node';
+					node.style.left = `${nodeData.x}px`;
+					node.style.top = `${nodeData.y}px`;
+					if(nodeData.deleted)
+					{
+						node.style.display = 'none';
+					}
+					node.innerHTML = `
+						<div class="node-header">
+						<strong title="${nodeData.label}">${convert(nodeData.label, 36)}</strong>
+						</div>
+						<div class="fields">
+						<div class="fields left" id="fields-left-${nodeData.id}">
+							${nodeData.fieldsLeft.map((field, index) => `
+							<div class="field" title="${field.current}">
+								<div class="connector left" data-node="${nodeData.id}" data-index="${index}" onmousedown="onMouseDown(event);" onmouseup="onMouseUp();" oncontextmenu="onContextMenu(event)"></div>
+								<p>${convert(field.current)}</p>
+							</div>
+							`).join('')}
+						</div>
+						<div class="fields right" id="fields-right-${nodeData.id}">
+							${nodeData.fieldsRight.map((field, index) => `
+							<div class="field" title="${field}">
+								<p>${convert(field)}</p>
+								<div class="connector right" data-node="${nodeData.id}" data-index="${index + nodeData.fieldsLeft.length}" onmousedown="onMouseDown(event);" onmouseup="onMouseUp();"></div>
+							</div>
+							`).join('')}
+						</div>
+						</div>
+					`;
+					nodeContainer.appendChild(node);
+					makeDraggable(node, [nodeData.x, nodeData.y]);
+				});
+			}
+			connections.forEach(connection => {
+				nodes[connection.nodeID2 - 1].fieldsLeft[connection.index2].current = nodes[connection.nodeID1 - 1].fieldsRight[connection.index1 - nodes[connection.nodeID1 - 1].fieldsLeft.length];
+			});
+			if (newValues !== oldValues)
+			{
+				nodes.forEach((node) => {
+					node.fieldsRight = node.calculateRightValues(node.fieldsLeft.map(field => field.current));
+					for (var index = 0; index < node.fieldsLeft.length; index++)
+					{
+						document.getElementById(`fields-left-${node.id}`).childNodes[index * 2 + 1].childNodes[3].innerHTML = convert(node.fieldsLeft[index].current);
+						document.getElementById(`fields-left-${node.id}`).childNodes[index * 2 + 1].childNodes[3].setAttribute('title', node.fieldsLeft[index].current);
+					}
+					for(var index = 0; index < node.fieldsRight.length; index++)
+					{
+						document.getElementById(`fields-right-${node.id}`).childNodes[index * 2 + 1].childNodes[1].innerHTML = convert(node.fieldsRight[index]);
+						document.getElementById(`fields-right-${node.id}`).childNodes[index * 2 + 1].childNodes[1].setAttribute('title', node.fieldsRight[index]);
+					}
+				});
+
+				oldValues = newValues;
+			}
+		}, 10);
+
+		// Make nodes draggable
+		function makeDraggable(element, coordinates) {
+			let offsetX, offsetY;
+			element.childNodes[1].addEventListener('mousedown', (e) => {
+				e.preventDefault();
+				offsetX = e.clientX - element.getBoundingClientRect().left;
+				offsetY = e.clientY - element.getBoundingClientRect().top;
+				document.addEventListener('mousemove', onDrag);
+				document.addEventListener('mouseup', () => {
+					document.removeEventListener('mousemove', onDrag);
+				});
+			});
+
+			element.childNodes[1].addEventListener('dblclick', (e) => {
+				let nodeIndex = 1 + Array.from(document.getElementsByClassName('node')).indexOf(element);
+				if(!connections.find((connection) => (connection.nodeID1 == nodeIndex || connection.nodeID2 == nodeIndex)))
+				{
+					if(confirm('Are you sure you want to delete the node?'))
+					{
+						element.style.display = 'none';
+						nodes[nodeIndex - 1] = new Object({
+							id: nodeIndex,
+							x: undefined,
+							y: undefined,
+							label: '',
+							fieldsLeft: [],
+							fieldsRight: [],
+							calculateRightValues: (a) => ([]),
+							connectedNodes: new Set([]),
+							type: -1,
+							value: (a) => (''),
+							deleted: true,
+						});
+					}
+				}
+			});
+
+			function onDrag(e) {
+				const x = e.clientX - offsetX + window.scrollX - coordinates[0];
+				const y = e.clientY - offsetY + window.scrollY - coordinates[1];
+				element.style.transform = `translate(${x}px, ${y}px)`;
+			}
+		}
+
+		function doesConnectionCreateCycle(nodeID1, nodeID2) {
+			// Initialize a set to keep track of visited nodes during DFS
+			const visitedNodes = new Set();
+
+			// Perform DFS starting from the source node (nodeID1)
+			if (dfs(nodeID1, nodeID2, visitedNodes)) {
+				// Cycle detected
+				return true;
+			}
+
+			// No cycle detected
+			return false;
+		}
+
+		function dfs(currentNodeID, targetNodeID, visitedNodes) {
+			// Check if the current node is the target node
+			if (currentNodeID === targetNodeID) {
+				return true; // Cycle detected
+			}
+
+			// Mark the current node as visited
+			visitedNodes.add(currentNodeID);
+
+			// Iterate through connected nodes
+			for (const connectedNodeID of nodes[currentNodeID - 1].connectedNodes) {
+				// Check if the connected node has already been visited
+				if (!visitedNodes.has(connectedNodeID)) {
+					// Recursively perform DFS on the connected node
+					if (dfs(connectedNodeID, targetNodeID, visitedNodes)) {
+						return true; // Propagate the cycle detection result
+					}
+				}
+			}
+
+			// Remove the current node from the visited set when backtracking
+			visitedNodes.delete(currentNodeID);
+
+			return false; // No cycle detected
+		}
+
+		function connectNodes(nodeID1, index1, nodeID2, index2) {
+			// Check for cycle before adding the new connection
+			if (!doesConnectionCreateCycle(nodeID1, nodeID2)) {
+				// Check if the new connection's second point (left) already exists in the array
+				const existingConnectionIndex = connections.findIndex(connection =>
+					connection.nodeID2 === nodeID2 &&
+					connection.index2 === index2
+				);
+
+				if (existingConnectionIndex !== -1)
+				{
+					nodes[nodeID2 - 1].connectedNodes.delete(parseInt(connections[existingConnectionIndex].nodeID1));
+					// If the second point already exists, replace the existing connection
+					connections[existingConnectionIndex] = {
+						nodeID1: nodeID1,
+						index1: index1,
+						nodeID2: nodeID2,
+						index2: index2,
+					};
+
+					nodes[nodeID2 - 1].connectedNodes.add(parseInt(nodeID1));
+
+					console.log(`Replaced existing connection: Node ${nodeID1}, Field ${index1} to Node ${nodeID2}, Field ${index2}`);
+				} else
+				{
+					// If the second point does not exist, add the new connection
+					connections.push({
+						nodeID1: nodeID1,
+						index1: index1,
+						nodeID2: nodeID2,
+						index2: index2,
+					});
+
+					nodes[nodeID2 - 1].connectedNodes.add(parseInt(nodeID1));
+
+					console.log(`Connected: Node ${nodeID1}, Field ${index1} to Node ${nodeID2}, Field ${index2}`);
+				}
+				const leftLength = nodes[nodeID1 - 1].fieldsLeft.length;
+				nodes[nodeID2 - 1].fieldsLeft[index2].current = nodes[nodeID1 - 1].fieldsRight[index1 - leftLength];
+				document.getElementById(`fields-left-${nodeID2}`).childNodes[2 * index2 + 1].childNodes[3].innerHTML = nodes[nodeID1 - 1].fieldsRight[index1 - leftLength];
+
+				drawConnections(nodes[nodeID2 - 1].connectedNodes); // Redraw connections
+			} else {
+				// Handle the case where the connection would create a cycle
+				console.warn('Connection would create a cycle and is not allowed.');
+			}
+		}
+
+		function drawConnections() {
+			canvas.width = document.body.scrollWidth;
+			canvas.height = document.body.scrollHeight;
+
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.strokeStyle = '#000';
+			ctx.lineWidth = 2;
+
+			try
+			{
+				connections.forEach(connection => {
+					const sourceConnector = document.querySelector(`.connector[data-node="${connection.nodeID1}"][data-index="${connection.index1}"]`);
+					const targetConnector = document.querySelector(`.connector[data-node="${connection.nodeID2}"][data-index="${connection.index2}"]`);
+
+					const sourceRect = sourceConnector.getBoundingClientRect();
+					const targetRect = targetConnector.getBoundingClientRect();
+
+					const sourceX = sourceRect.left + (sourceConnector.classList.contains('left') ? 0 : sourceRect.width) + window.scrollX;
+					const sourceY = sourceRect.top + sourceRect.height / 2 + window.scrollY;
+
+					const targetX = targetRect.left + (targetConnector.classList.contains('left') ? 0 : targetRect.width) + window.scrollX;
+					const targetY = targetRect.top + targetRect.height / 2 + window.scrollY;
+
+					const controlPoint1X = sourceX + (targetX - sourceX) * 0.5;
+					const controlPoint1Y = sourceY;
+					const controlPoint2X = targetX - (targetX - sourceX) * 0.5;
+					const controlPoint2Y = targetY;
+
+					ctx.beginPath();
+					ctx.moveTo(sourceX, sourceY);
+					ctx.bezierCurveTo(controlPoint1X, controlPoint1Y, controlPoint2X, controlPoint2Y, targetX, targetY);
+					ctx.stroke();
+				});
+			} finally
+			{
+				// Continue drawing connections
+				requestAnimationFrame(drawConnections);
+			}
+		}
+
+		function removeConnection(connectionToRemove) {
+			const indexToRemove = connections.findIndex(connection =>
+				connection === connectionToRemove
+			);
+
+			if (indexToRemove !== -1) {
+				nodes[connectionToRemove.nodeID2 - 1].connectedNodes.delete(parseInt(connectionToRemove.nodeID1));
+				connections.splice(indexToRemove, 1);
+				console.log(`Removed connection: Node ${connectionToRemove.nodeID1}, Field ${connectionToRemove.index1} to Node ${connectionToRemove.nodeID2}, Field ${connectionToRemove.index2}`);
+
+				nodes[connectionToRemove.nodeID2 - 1].fieldsLeft[connectionToRemove.index2].current = nodes[connectionToRemove.nodeID2 - 1].fieldsLeft[connectionToRemove.index2].initial;
+				document.getElementById(`fields-left-${connectionToRemove.nodeID2}`).childNodes[2 * connectionToRemove.index2 + 1].childNodes[3].innerHTML = convert(nodes[connectionToRemove.nodeID2 - 1].fieldsLeft[connectionToRemove.index2].initial);
+
+				drawConnections(); // Redraw connections
+			}
+		}
+
+		function createNode(coordinates, label, leftFields, rightFields, calculation, type=-1, value=(a) => (''), connectedNodes=[], id=(nodes.length + 1))
+		{
+			nodes.push({
+				id: id,
+				x: (coordinates[0] === undefined) ? 0 : coordinates[0],
+				y: (coordinates[1] === undefined) ? 0 : coordinates[1],
+				label: label,
+				fieldsLeft: leftFields.map((field) => (typeof(field) == 'object') ? (field) : (new Object({initial: field, current: field}))),
+				fieldsRight: rightFields,
+				calculateRightValues: calculation,
+				connectedNodes: new Set(connectedNodes),
+				type: type,
+				value: value,
+				deleted: (coordinates[0] === undefined) || (!coordinates[1] === undefined),
+			});
+			return nodes.length;
+		}
+
+		function hierarchy(nodeID)
+		{
+			if(nodes[nodeID - 1].connectedNodes.size == 0)
+			{
+				return nodes[nodeID - 1].type;
+			}
+			return Math.max(...([...nodes[nodeID - 1].connectedNodes].map((node) => (hierarchy(node))))) + 1;
+		}
+
+		function order()
+		{
+			const base = [...Array(nodes.length).keys()].map((node) => hierarchy(1 + node));
+			const nodeArray = nodes.map((node) => (node.id));
+			const result = [];
+			while(base.length > 0)
+			{
+				let index = base.indexOf(Math.min(...base));
+				result.push(nodeArray[index]);
+				base.splice(index, 1);
+				nodeArray.splice(index, 1);
+			}
+			return result;
+		}
+
+		// Initial drawing of connections
+		drawConnections();
+	</script>
+</body>
+</html>
