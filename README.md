@@ -1,0 +1,1 @@
+# qazaqcode.github.io
